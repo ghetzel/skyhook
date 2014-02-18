@@ -1,0 +1,67 @@
+#!/bin/bash
+set -o errexit
+
+trap errout ERR
+
+karg(){
+  echo ${KERNEL_CMDLINE:-$(cat /proc/cmdline)} | grep -Po "(?:${1})=[^\s]+" | cut -d= -f2 | head -n1
+}
+
+errout(){
+  echo -e "\033[31m[FATAL] ${1:-Error occurred executing chef-run}\033[0m" 1>&2
+  [ -n "$2" ] && exit $2
+}
+
+SKIP_CHEF=$(karg 'chef\.skip|nochef')
+
+[ "$SKIP_CHEF" == "true" ] && echo "Skipping chef-run" 1>&2 && exit 1
+[ -f /var/tmp/no_chef_run ] && echo "Skipping chef-run" 1>&2 && exit 1
+
+[ -d /var/chef ] && rm -rf /var/chef
+mkdir /var/chef
+cd /var/chef
+
+KERNEL_CHEF_REPO_BASEURL=$(karg 'chef\.baseurl|repourl')
+KERNEL_CHEF_REPO=$(karg 'chef\.repo|repo' | tr "," " ")
+
+# download and extract all listed repo archives
+for repo in $KERNEL_CHEF_REPO; do
+  CHEF_REPO_TAR="/tmp/chef-repo-${repo}.tar.gz"
+  REPO_URL="${KERNEL_CHEF_REPO_BASEURL}/${repo}.tar.gz"
+
+  # download chef repo
+  echo "Downloading Chef repository ${repo} from ${REPO_URL}..." 1>&2
+  curl -sSfL "${REPO_URL}" > $CHEF_REPO_TAR
+
+  # extract chef repo
+  echo "Extracting Chef repository ${repo} to /var/chef..." 1>&2
+  tar xf $CHEF_REPO_TAR -C /var/chef 2> /dev/null
+
+  # cleanup after ourselves
+  rm -f /tmp/chef-repo-*.tar.gz
+done
+
+# get runlist (comma-separated list or URL) from kernel args
+KERNEL_RUNLIST=$(karg 'chef\.runlist|runlist')
+
+# handle http(s) runlists
+if [ "${KERNEL_RUNLIST%%://*}" == "http" -o "${KERNEL_RUNLIST%%://*}" == "https" ]; then
+  echo "Downloading Chef run list from ${KERNEL_RUNLIST}..." 1>&2
+  KERNEL_RUNLIST=$(curl -sSfL $KERNEL_RUNLIST | grep -v '^#' | tr -s "\n" | tr "\n" "," | sed -e 's/,$//' -e 's/^,//')
+fi
+
+RUNLIST=${KERNEL_RUNLIST}
+[ -n "$1" ] && RUNLIST="$1"
+
+if [ -n "$RUNLIST" ]; then
+  echo "Using runlist: $RUNLIST" 1>&2
+
+  if [ "$(karg 'chef\.noop')" == "true" ]; then
+    echo "Flag chef.noop is set, skipping actual Chef run." 1>&2
+    exit 0
+  else
+    chef-solo -o "$RUNLIST"
+  fi
+else
+  errout "No runlist specified" 2
+fi

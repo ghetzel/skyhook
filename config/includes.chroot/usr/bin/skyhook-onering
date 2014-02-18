@@ -1,0 +1,35 @@
+#!/bin/sh
+
+# generate HID if not present
+[ ! -s /etc/hardware.id ] && /usr/local/bin/onering fact hardwareid > /etc/hardware.id
+
+# perform inventory
+/usr/local/bin/onering -q report --save --timeout 20
+
+# render info screen
+/usr/bin/srender /etc/status.tpl > /tmp/.status.txt
+cp /tmp/.status.txt /root/status.txt
+
+# check for next action
+NEXT_ACTION=$(onering -p clear=true call provision/$(onering fact hardwareid)/action)
+
+case "$NEXT_ACTION" in
+reboot)
+  ipmitool chassis identify 0 2> /dev/null
+  reboot;;
+
+identify)
+  ipmitool chassis identify force 2> /dev/null;;
+
+silence)
+  ipmitool chassis identify 0 2> /dev/null;;
+
+blink)
+  ipmitool chassis identify 240 2> /dev/null;;
+
+*)
+#   default turn on chassis ID
+    ipmitool chassis identify force 2> /dev/null;;
+esac
+
+exit 0

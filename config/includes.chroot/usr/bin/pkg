@@ -1,0 +1,235 @@
+#!/bin/sh
+
+PKGMGR=""
+
+detectPM(){
+  if [ -f /etc/arch-release ]; then
+    PKGMGR="PACMAN"
+  elif [ -f /etc/fedora-release ]; then
+    PKGMGR="YUM"
+  elif [ -f /etc/redhat-release -o -f /etc/redhat_version ]; then
+    PKGMGR="YUM"
+  elif [ -f /etc/debian_version -o -f /etc/debian_release ]; then
+    PKGMGR="APT"
+  elif [ -f /etc/lsb-release ]; then
+    PKGMGR="APT"
+  elif [ -f /etc/gentoo-release ]; then
+    PKGMGR="PORTAGE"
+  elif [ "`uname -s`" = "FreeBSD" ]; then
+    PKGMGR="PORTS"
+  fi
+}
+
+pkgInstall(){
+  case $PKGMGR in
+  PACMAN)
+    sudo pacman -S $@;;
+  YUM)
+    sudo yum install $@;;
+  APT)
+    sudo apt-get install $@;;
+  PORTS)
+    sudo pkg_add -r $@;;
+  *)
+    echo "Unrecognized distribution, cannot continue" 1>&2
+    exit 127;;
+  esac
+}
+
+pkgCommunityInstall(){
+  case $PKGMGR in
+  PACMAN)
+    yaourt -S --noconfirm $@ --tmp $HOME;;
+  *)
+    echo "Community repository does not apply to this distribution" 1>&2
+    exit 127;;
+  esac
+}
+
+pkgSearch(){
+  case $PKGMGR in
+  PACMAN)
+    pacman -Ss $@;;
+  YUM)
+    yum search $@;;
+  APT)
+    apt-cache search $@;;
+  PORTS)
+    echo "Ports matching '$@':"
+    cd /usr/ports && make search name="$@" | grep "^Port" | sed -e 's/^Port://g' | sort;;
+  *)
+    echo "Unrecognized distribution, cannot continue" 1>&2
+    exit 127;;
+  esac
+}
+
+pkgProvidesFile(){
+  case $PKGMGR in
+  YUM)
+    sudo yum whatprovides "*/$1";;
+  APT)
+    sudo dpkg-query -S "*/$1";;
+  *)
+    echo "Unrecognized distribution, cannot continue" 1>&2
+    exit 127;;
+  esac
+}
+
+pkgRemove(){
+  case $PKGMGR in
+  PACMAN)
+    sudo pacman -R $@;;
+  YUM)
+    sudo yum remove $@;;
+  APT)
+    sudo apt-get remove $@;;
+  PORTS)
+    sudo pkg_delete $@;;
+  *)
+    echo "Unrecognized distribution, cannot continue" 1>&2
+    exit 127;;
+  esac
+}
+
+pkgCleanup(){
+  case $PKGMGR in
+  APT)
+    sudo apt-get autoremove;;
+  *)
+    echo "Unrecognized distribution, cannot continue" 1>&2
+    exit 127;;
+  esac
+}
+
+pkgUpdate(){
+  case $PKGMGR in
+  PACMAN)
+    sudo pacman -U $@;;
+  YUM)
+    sudo yum update $@;;
+  APT)
+    sudo apt-get install $@;;
+  PORTS)
+    echo "FreeBSD ports updating is a little more involved (see: portsnap)" 1>&2
+    exit 127;;
+  *)
+    echo "Unrecognized distribution, cannot continue" 1>&2
+    exit 127;;
+  esac
+}
+
+pkgSysUpdate(){
+  case $PKGMGR in
+  PACMAN)
+    sudo pacman -Syu;;
+  YUM)
+    sudo yum upgrade;;
+  APT)
+    sudo apt-get upgrade;;
+  PORTS)
+    echo "FreeBSD ports system updating is even more involved than updating (see: pkg update, portsnap)" 1>&2
+    exit 127;;
+  *)
+    echo "Unrecognized distribution, cannot continue" 1>&2
+    exit 127;;
+  esac
+}
+
+pkgRefresh(){
+  case $PKGMGR in
+  PACMAN)
+    sudo pacman -Sy;;
+  YUM)
+    echo "Yum automatically refreshes cache lists on every install/upgrade operation" 1>&2;;
+  APT)
+    sudo apt-get update;;
+  PORTS)
+    echo "Not implemented yet (see: portsnap)" 1>&2;;
+  *)
+    echo "Unrecognized distribution, cannot continue" 1>&2;;
+  esac
+}
+
+pkgSearchInstall(){
+  _IFS=$IFS
+  IFS=' '
+
+  case $PKGMGR in
+  YUM)
+    PATTERN='/^====.*/,0';;
+  *)
+    PATTERN='/.*/,0';;
+  esac
+
+  echo "Searching for $@..."
+  echo ""
+  LINES=$(pkgSearch $@ | awk $PATTERN | sed 'N;s/\n[ ]*: / /g' | tail -n +2 | nl)
+
+  echo $LINES 
+  #| grep -P -i --color
+  echo ""
+  echo -n "Select packages to install (a,b,...): "
+  read $INSTALL
+
+  echo $INSTALL
+
+  IFS=$_IFS
+}
+
+pkgListPackages(){
+  case $PKGMGR in
+  YUM)
+    yum list installed | grep ${@:-''};;
+  APT)
+    dpkg -l | grep '^ii' | grep ${@:-''};;
+  *)
+    echo "List packages not implemented for this platform" 1>&2
+    exit 127;;
+  esac
+}
+
+pkgSourceInstall(){
+  case $PKGMGR in
+  APT)
+    apt-get source $@
+    sudo apt-get build-dep $@
+    ;;
+  *)
+    echo "Source install not implemented for this platform" 1>&2
+    exit 127;;
+  esac
+}
+
+detectPM;
+
+ACTION=$1
+shift
+
+case $ACTION in
+  i|install)
+    pkgInstall $@;;
+        ii|ci|community)
+    pkgCommunityInstall $@;;
+  r|remove|erase|uninstall)
+    pkgRemove $@;;
+  u|update)
+    pkgUpdate $@;;
+  s|search)
+    pkgSearch $@;;
+  si|search-install)
+    pkgSearchInstall $@;;
+  R|refresh)
+    pkgRefresh;;
+  c|ar|cleanup)
+    pkgCleanup;;
+  p|provides|file)
+    pkgProvidesFile $@;;
+  ls)
+    pkgListPackages $@;;
+  src|source|source-install)
+    pkgSourceInstall $@;;
+  uu|U|UU|SU|upgrade|system-update)
+    pkgSysUpdate;;
+  *)
+    echo "Unrecognized option '$ACTION'" 1>&2;;
+esac

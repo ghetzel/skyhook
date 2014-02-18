@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# Install Onering client gems and report plugins
+gem install onering-client onering-report-plugins --no-rdoc --no-ri
+
+# create empty log
+touch /var/log/onering.log

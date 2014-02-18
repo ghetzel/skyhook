@@ -1,0 +1,13 @@
+#!/bin/sh
+lb config noauto                                            \
+  --parent-mirror-bootstrap http://ftp.us.debian.org/debian \
+  --archive-areas "main contrib non-free"                   \
+  --cache-packages true                                     \
+  --mode debian                                             \
+  --distribution sid                                        \
+  --binary-images net                                       \
+  --ignore-system-defaults                                  \
+  --apt-indices false                                       \
+  --initramfs-compression gzip                              \
+  --gzip-options "--best"                                   \
+  "${@}"

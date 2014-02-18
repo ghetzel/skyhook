@@ -1,0 +1,15 @@
+#!/bin/bash
+trap 'echo -e "\nQuitting..." && exit' SIGINT SIGTERM
+
+case $# in
+  0)
+        echo "Must specify a command!"
+        exit 1;;
+  *)
+        while read line; do
+		if [ -n "$line" ]; then
+			echo "Processing $line..." 1>&2
+			echo "$line" | tr '\n' '\0' | xargs -0 "$@"
+		fi
+        done;;
+esac

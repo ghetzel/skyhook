@@ -1,0 +1,4 @@
+# run chef, then just sit back and let the money roll in...
+/usr/bin/flock -n /var/tmp/chef-run.lock -c '/usr/bin/chef-run'
+
+exit 0

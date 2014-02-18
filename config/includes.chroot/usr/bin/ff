@@ -1,0 +1,6 @@
+#!/bin/bash
+if [ $# -gt 0 ]; then
+	find . -type f 2> /dev/null | grep -iP "$@"
+else
+	find . -type f 2> /dev/null
+fi
