@@ -4,7 +4,7 @@ lb config noauto                                            \
   --archive-areas "main contrib non-free"                   \
   --cache-packages true                                     \
   --mode debian                                             \
-  --distribution sid                                        \
+  --distribution wheezy                                     \
   --binary-images net                                       \
   --ignore-system-defaults                                  \
   --apt-indices false                                       \
