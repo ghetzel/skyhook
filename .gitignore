@@ -1,0 +1,15 @@
+cache
+local
+config/include.*/_*.list
+config/bootstrap
+config/binary
+config/chroot
+config/common
+config/source
+binary
+binary.*
+*.log
+chroot
+chroot.*
+.build
+.lock
